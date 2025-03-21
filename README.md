@@ -28,6 +28,7 @@ Optimized serving system for large language models with features like continuous
 - vLLM
 - Triton Inference Server
 - Ray
+- Kubernetes (for deployment)
 
 ### Install Dependencies
 ```bash
@@ -38,12 +39,12 @@ pip install -r requirements.txt
 
 ## Usage
 
-To start the Triton Inference Server:
+### Start Triton Inference Server
 ```bash
 ./scripts/start_triton_server.sh --config configs/config.yaml
 ```
 
-To deploy on Kubernetes:
+### Deploy on Kubernetes
 ```bash
 ./scripts/deploy_kubernetes.sh
 ```
@@ -94,6 +95,14 @@ llm-serving/
 |-----------------|---------------------------|--------------|
 | Baseline        | 100                       | 200          |
 | vLLM + Triton   | 400                       | 50           |
+
+### Running Benchmarks
+To run the benchmarks, use the following commands:
+
+```bash
+python benchmarks/benchmark_throughput.py
+python benchmarks/benchmark_latency.py
+```
 
 ---
 

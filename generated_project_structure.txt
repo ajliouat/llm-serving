@@ -4,6 +4,8 @@ llm-serving/
 │   ├── benchmarks/
 │   │   ├── benchmark_latency.py
 │   │   ├── benchmark_throughput.py
+│   ├── configs/
+│   │   ├── config.yaml
 │   ├── deployments/
 │   │   ├── kubernetes/
 │   │   │   ├── autoscaler.yaml
@@ -271,6 +273,7 @@ Optimized serving system for large language models with features like continuous
 - vLLM
 - Triton Inference Server
 - Ray
+- Kubernetes (for deployment)
 
 ### Install Dependencies
 ```bash
@@ -281,12 +284,12 @@ pip install -r requirements.txt
 
 ## Usage
 
-To start the Triton Inference Server:
+### Start Triton Inference Server
 ```bash
 ./scripts/start_triton_server.sh --config configs/config.yaml
 ```
 
-To deploy on Kubernetes:
+### Deploy on Kubernetes
 ```bash
 ./scripts/deploy_kubernetes.sh
 ```
@@ -338,6 +341,14 @@ llm-serving/
 | Baseline        | 100                       | 200          |
 | vLLM + Triton   | 400                       | 50           |
 
+### Running Benchmarks
+To run the benchmarks, use the following commands:
+
+```bash
+python benchmarks/benchmark_throughput.py
+python benchmarks/benchmark_latency.py
+```
+
 ---
 
 ## Contributing
@@ -355,6 +366,7 @@ This project is licensed under the **Apache License 2.0**. See the [LICENSE](LIC
 
 // benchmarks/benchmark_latency.py:
 import time
+import numpy as np
 from src.serving.triton_inference import TritonInference
 
 def benchmark_latency(model_name, num_requests=100):
@@ -363,7 +375,8 @@ def benchmark_latency(model_name, num_requests=100):
 
     for _ in range(num_requests):
         start_time = time.time()
-        inference.predict({"input": "Sample input"})
+        input_data = np.random.rand(1, 512).astype(np.float32)  # Example input
+        inference.predict({"input": input_data})
         end_time = time.time()
         latencies.append((end_time - start_time) * 1000)  # Convert to milliseconds
 
@@ -374,24 +387,42 @@ if __name__ == "__main__":
     benchmark_latency("llama-2-7b")
 
 // benchmarks/benchmark_throughput.py:
-apiVersion: autoscaling/v2
-kind: HorizontalPodAutoscaler
-metadata:
-  name: llm-serving-autoscaler
-spec:
-  scaleTargetRef:
-    apiVersion: apps/v1
-    kind: Deployment
-    name: llm-serving
-  minReplicas: 1
-  maxReplicas: 10
-  metrics:
-  - type: Resource
-    resource:
-      name: cpu
-      target:
-        type: Utilization
-        averageUtilization: 80
+import time
+import numpy as np
+from src.serving.triton_inference import TritonInference
+
+def benchmark_throughput(model_name, num_requests=1000):
+    inference = TritonInference(model_name)
+    latencies = []
+    throughputs = []
+
+    for _ in range(num_requests):
+        start_time = time.time()
+        input_data = np.random.rand(1, 512).astype(np.float32)  # Example input
+        inference.predict({"input": input_data})
+        end_time = time.time()
+        latencies.append((end_time - start_time) * 1000)  # Convert to milliseconds
+        throughputs.append(1 / (end_time - start_time))  # Requests per second
+
+    avg_latency = sum(latencies) / num_requests
+    avg_throughput = sum(throughputs) / num_requests
+    print(f"Average latency: {avg_latency:.2f} ms")
+    print(f"Average throughput: {avg_throughput:.2f} requests/sec")
+
+if __name__ == "__main__":
+    benchmark_throughput("llama-2-7b")
+
+// configs/config.yaml:
+model_repository: "models/model_repository"  # Path to the model repository
+batch_size: 32  # Default batch size
+max_memory: 16000  # Max memory in MB
+qos_level: "high"  # QoS level (high, medium, low)
+kubernetes:
+  replicas: 3  # Number of replicas
+  autoscaler:
+    min_replicas: 1
+    max_replicas: 10
+    target_cpu_utilization: 80
 
 // deployments/kubernetes/autoscaler.yaml:
 apiVersion: autoscaling/v2
@@ -571,6 +602,7 @@ class RayInference:
 
 // src/serving/triton_inference.py:
 import tritonclient.grpc as grpcclient
+import numpy as np
 
 class TritonInference:
     def __init__(self, model_name):
@@ -595,11 +627,17 @@ def setup_logging():
 
 // src/utils/monitoring.py:
 import psutil
+import GPUtil
 
 def monitor_system():
     cpu_usage = psutil.cpu_percent()
     memory_usage = psutil.virtual_memory().percent
-    return {"cpu_usage": cpu_usage, "memory_usage": memory_usage}
+    gpu_usage = GPUtil.getGPUs()[0].load * 100 if GPUtil.getGPUs() else 0
+    return {
+        "cpu_usage": cpu_usage,
+        "memory_usage": memory_usage,
+        "gpu_usage": gpu_usage,
+    }
 
 // tests/test_batching.py:
 from src.core.batching import ContinuousBatching

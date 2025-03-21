@@ -1,4 +1,5 @@
 import time
+import numpy as np
 from src.serving.triton_inference import TritonInference
 
 def benchmark_latency(model_name, num_requests=100):
@@ -7,7 +8,8 @@ def benchmark_latency(model_name, num_requests=100):
 
     for _ in range(num_requests):
         start_time = time.time()
-        inference.predict({"input": "Sample input"})
+        input_data = np.random.rand(1, 512).astype(np.float32)  # Example input
+        inference.predict({"input": input_data})
         end_time = time.time()
         latencies.append((end_time - start_time) * 1000)  # Convert to milliseconds
 

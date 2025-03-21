@@ -1,4 +1,5 @@
 import tritonclient.grpc as grpcclient
+import numpy as np
 
 class TritonInference:
     def __init__(self, model_name):

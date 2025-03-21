@@ -1,0 +1,10 @@
+model_repository: "models/model_repository"  # Path to the model repository
+batch_size: 32  # Default batch size
+max_memory: 16000  # Max memory in MB
+qos_level: "high"  # QoS level (high, medium, low)
+kubernetes:
+  replicas: 3  # Number of replicas
+  autoscaler:
+    min_replicas: 1
+    max_replicas: 10
+    target_cpu_utilization: 80
