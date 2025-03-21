@@ -1,0 +1,3 @@
+# Placeholder for the ONNX model file.
+# This file should contain the serialized ONNX model.
+# You can generate this file using the `onnx` package in Python.

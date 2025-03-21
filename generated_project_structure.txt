@@ -13,7 +13,7 @@ llm-serving/
 │   │   ├── model_repository/
 │   │   │   ├── gpt-neo-2.7b/
 │   │   │   │   ├── {1}/
-│   │   │   │   │   ├── *
+│   │   │   │   │   ├── model.onnx
 │   │   │   ├── llama-2-7b/
 │   │   │   │   ├── {1}/
 │   │   │   │   │   ├── config.pbtxt
@@ -397,7 +397,34 @@ spec:
 
 
 // deployments/kubernetes/deployment.yaml:
-
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: llm-serving
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: llm-serving
+  template:
+    metadata:
+      labels:
+        app: llm-serving
+    spec:
+      containers:
+      - name: triton-server
+        image: nvcr.io/nvidia/tritonserver:23.09-py3
+        ports:
+        - containerPort: 8000
+        - containerPort: 8001
+        - containerPort: 8002
+        volumeMounts:
+        - mountPath: /models
+          name: model-repository
+      volumes:
+      - name: model-repository
+        hostPath:
+          path: /path/to/models/model_repository
 
 // deployments/kubernetes/service.yaml:
 apiVersion: v1
@@ -419,11 +446,13 @@ spec:
     targetPort: 8002
   type: LoadBalancer
 
-// models/model_repository/gpt-neo-2.7b/{1}/*:
-
+// models/model_repository/gpt-neo-2.7b/{1}/model.onnx:
+# Placeholder for the ONNX model file.
+# This file should contain the serialized ONNX model.
+# You can generate this file using the `onnx` package in Python.
 
 // models/model_repository/llama-2-7b/{1}/config.pbtxt:
-name: "llama-2-7b"
+name: "gpt-neo-2.7b"
 platform: "onnxruntime_onnx"
 max_batch_size: 32
 input [
@@ -468,7 +497,21 @@ tritonserver --model-repository=models/model_repository --log-verbose=1
 echo "Triton Inference Server started!"
 
 // src/core/batching.py:
+class ContinuousBatching:
+    def __init__(self, batch_size=32):
+        self.batch_size = batch_size
+        self.batch_queue = []
 
+    def add_request(self, request):
+        self.batch_queue.append(request)
+        if len(self.batch_queue) >= self.batch_size:
+            return self.process_batch()
+        return None
+
+    def process_batch(self):
+        batch = self.batch_queue[:self.batch_size]
+        self.batch_queue = self.batch_queue[self.batch_size:]
+        return batch
 
 // src/core/memory_management.py:
 class PageAttentionMemory:
@@ -510,7 +553,19 @@ class RayInference:
         return {"output": "Sample output"}
 
 // src/serving/triton_inference.py:
+import tritonclient.grpc as grpcclient
 
+class TritonInference:
+    def __init__(self, model_name):
+        self.client = grpcclient.InferenceServerClient(url="localhost:8001")
+        self.model_name = model_name
+
+    def predict(self, input_data):
+        inputs = [grpcclient.InferInput("input", input_data.shape, "FP32")]
+        inputs[0].set_data_from_numpy(input_data)
+        outputs = [grpcclient.InferRequestedOutput("output")]
+        response = self.client.infer(self.model_name, inputs, outputs=outputs)
+        return response.as_numpy("output")
 
 // src/utils/logging.py:
 import logging
@@ -522,7 +577,12 @@ def setup_logging():
     )
 
 // src/utils/monitoring.py:
+import psutil
 
+def monitor_system():
+    cpu_usage = psutil.cpu_percent()
+    memory_usage = psutil.virtual_memory().percent
+    return {"cpu_usage": cpu_usage, "memory_usage": memory_usage}
 
 // tests/test_batching.py:
 from src.core.batching import ContinuousBatching

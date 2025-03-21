@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: llm-serving
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: llm-serving
+  template:
+    metadata:
+      labels:
+        app: llm-serving
+    spec:
+      containers:
+      - name: triton-server
+        image: nvcr.io/nvidia/tritonserver:23.09-py3
+        ports:
+        - containerPort: 8000
+        - containerPort: 8001
+        - containerPort: 8002
+        volumeMounts:
+        - mountPath: /models
+          name: model-repository
+      volumes:
+      - name: model-repository
+        hostPath:
+          path: /path/to/models/model_repository
